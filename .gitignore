@@ -18,3 +18,5 @@
 /h2/*.out
 /h2/*.result
 /h2/*.model
+.idea/
+h2/p1.train.rare.dat

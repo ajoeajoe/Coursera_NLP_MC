@@ -40,7 +40,7 @@ def tag(test_data_filename, result_filename, pcfg_model_filename):
 
 
 def main():
-    TRAIN = True
+    TRAIN = False
     train_data_filename = 'parse_train.dat'
     train_rare_filename = 'p2.train.rare.dat'
     pcfg_model_filename = 'p2.model'

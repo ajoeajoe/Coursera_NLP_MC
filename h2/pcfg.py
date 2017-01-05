@@ -1,13 +1,12 @@
 #! /usr/bin/python
+# coding=utf-8
 import json
 from count_cfg_freq import Counts
 from collections import defaultdict
 from decimal import Decimal
 
-
 __author__ = 'ping.zou'
 __date__ = '30 Mar 2013'
-
 
 DEBUG = True
 RARE_TAG = '_RARE_'
@@ -20,6 +19,13 @@ def rare_words_rule_p1(word):
 
 
 def process_rare_words(input_file, output_file, rare_words, processer):
+    """
+    替换低频词，并输出到文件
+    :param input_file:
+    :param output_file:
+    :param rare_words:
+    :param processer:
+    """
     for line in input_file:
         tree = json.loads(line)
         replace(tree, rare_words, processer)
@@ -29,6 +35,13 @@ def process_rare_words(input_file, output_file, rare_words, processer):
 
 
 def replace(tree, rare_words, processer):
+    """
+    替换一棵树中的低频词
+    :param tree:
+    :param rare_words:
+    :param processer:
+    :return:
+    """
     if isinstance(tree, basestring):
         return
 
@@ -50,6 +63,7 @@ class PCFG(Counts):
     """
     Store counts, and model params
     """
+
     def __init__(self):
         super(PCFG, self).__init__()
 
@@ -71,6 +85,9 @@ class PCFG(Counts):
                 self.rare_words.append(word)
 
     def cal_rule_params(self):
+        """
+        统计uni和bin rule的频率
+        """
         # q(X->Y1Y2) = Count(X->Y1Y2) / Count(X)
         for (x, y1, y2), count in self.binary.iteritems():
             key = (x, y1, y2)
@@ -152,7 +169,7 @@ class CKYTagger(PCFG):
         words = sentence.strip().split(' ')
         n = len(words)
 
-        # process rare word
+        # process rare word,测试文件中的未登录词按照相同的规则预处理
         for i in xrange(0, n):
             if words[i] not in self.word.keys():
                 words[i] = self.rare_words_rule(words[i])
@@ -160,7 +177,7 @@ class CKYTagger(PCFG):
         log('Sentence to process: {sent}'.format(sent=' '.join(words)))
         log('n = {n}, len(N) = {ln}'.format(n=n, ln=len(N)))
 
-        # reduce X, Y and Z searching space
+        # reduce X, Y and Z searching space,剪枝策略，过滤掉那些不合法的rule
         SET_X = defaultdict()
         for (X, Y, Z) in self.binary.keys():
             if X in SET_X:
@@ -168,48 +185,36 @@ class CKYTagger(PCFG):
             else:
                 SET_X[X] = []
 
-        # init
-        for i in xrange(1, n+1):
-            w = words[i-1]
-            # log('==== init pi for word {i}: "{w}" ===='.format(i=i, w=w))
+        # init, unary rule
+        for i in xrange(1, n + 1):
+            w = words[i - 1]
             for X in N:
                 if (X, w) in self.unary.keys():
                     pi[(i, i, X)] = Decimal(self.q_x_w[(X, w)])
                 else:
                     pi[(i, i, X)] = Decimal(0.0)
-                # if pi[(i, i, X)] != 0:
-                    # log('pi({i}, {i}, {X})={pi}, rule=({X}, {w})'.format(i=i, X=X, w=w, pi=pi[(i, i, X)]))
-            # log('')
 
         # dp
         for l in xrange(1, n):
-            for i in xrange(1, n-l+1):
+            for i in xrange(1, n - l + 1):
                 j = i + l
-                # log('==== word {i} to {j} ===='.format(i=i, j=j))
 
                 for X, YZPairs in SET_X.iteritems():
-                    tmp, max_pi = 0.0, -1.0
-                    max_Y, max_Z, max_s = '', '', 0
-                    find_max = False
-                    for s in xrange(i, j):
-                        for (Y, Z) in YZPairs:
-                            if ((i, s, Y) in pi and pi[(i, s, Y)] != 0)  \
-                                and ((s+1, j, Z) in pi and pi[(s+1, j, Z)] != 0):
-                                tmp = Decimal(self.q_x_y1y2[(X, Y, Z)]) \
-                                    * pi[(i, s, Y)]  \
-                                    * pi[(s+1, j, Z)]
-                                # log('prob={tmp}, q(({X}, {Y}, {Z}))={q}, pi({i}, {s}, {Y})={pi1}, pi({sa1}, {j}, {Z})={pi2}'.format(tmp=tmp, X=X, Y=Y, Z=Z, q=self.q_x_y1y2[(X, Y, Z)], i=i, s=s, sa1=s+1, j=j, pi1=pi[(i, s, Y)], pi2=pi[(s+1, j, Z)]))
-                                if tmp > max_pi:
-                                    find_max = True
-                                    max_pi = tmp
-                                    max_Y, max_Z, max_s = Y, Z, s
-                    if find_max:
-                        pi[(i, j, X)] = max_pi
-                        bp[(i, j, X)] = (max_Y, max_Z, max_s)
-                        # log('pi({i}, {j}, {X})={pi}, argmax rule = ({X}, {Y}, {Z}), argmax split = {s}'.format(i=i, j=j, X=X, pi=pi[(i, j, X)], Y=max_Y, Z=max_Z, s=max_s))
-                        # log(bp[(i, j, X)])
+                    cur_pi, max_pi = 0.0, -1.0
+                    for (Y, Z) in YZPairs:
+                        for s in xrange(i, j):
+                            # 由于我们用SET_X做了剪枝，所以需要检查是否属于被过滤掉的非法rule
+                            if (i, s, Y) not in pi or (s + 1, j, Z) not in pi:
+                                continue
+                            cur_pi = Decimal(self.q_x_y1y2[(X, Y, Z)]) \
+                                  * pi[(i, s, Y)] \
+                                  * pi[(s + 1, j, Z)]
+                            if cur_pi > max_pi:
+                                max_pi = cur_pi
+                                max_Y, max_Z, max_s = Y, Z, s
+                                pi[(i, j, X)] = max_pi
+                                bp[(i, j, X)] = (max_Y, max_Z, max_s)
 
-        # log('==== traceback ====')
         if (1, n, ROOT) not in bp:
             max_pi = 0.0
             max_X = ''
@@ -220,7 +225,6 @@ class CKYTagger(PCFG):
         else:
             max_X = ROOT
         result = self.traceback(pi, bp, sentence, 1, n, max_X)
-        # log(json.dumps(result))
         return result
 
     def traceback(self, pi, bp, sentence, i, j, X):
@@ -228,10 +232,10 @@ class CKYTagger(PCFG):
         tree = []
         tree.append(X)
         if i == j:
-            tree.append(words[i-1])
+            tree.append(words[i - 1])
         else:
             Y1, Y2, s = bp[(i, j, X)]
             # print Y1, Y2, s
             tree.append(self.traceback(pi, bp, sentence, i, s, Y1))
-            tree.append(self.traceback(pi, bp, sentence, s+1, j, Y2))
+            tree.append(self.traceback(pi, bp, sentence, s + 1, j, Y2))
         return tree
