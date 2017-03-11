@@ -63,3 +63,35 @@ p1.py
 The expected development F-Scores are 0.420, 0.449, and a basic intersection alignment should give 0.485 for the last part.
 
 ----
+H4: GLM
+----
+
+glm.py
+Par1
+
+```
+Found 1337 GENEs. Expected 642 GENEs; Correct: 280.
+ 
+	 precision 	recall 		F1-Score
+GENE:	 0.209424	0.436137	0.282971
+```
+
+Par2
+
+```
+Found 775 GENEs. Expected 642 GENEs; Correct: 390.
+ 
+	 precision 	recall 		F1-Score
+GENE:	 0.503226	0.607477	0.550459
+```
+
+Par3
+
+```
+Found 571 GENEs. Expected 642 GENEs; Correct: 366.
+ 
+	 precision 	recall 		F1-Score
+GENE:	 0.640981	0.570093	0.603462
+```
+
+
